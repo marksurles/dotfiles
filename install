@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Ensure ~/.bashrc sources ~/.bashrc.d/*
+if ! grep -q 'bashrc.d' "$HOME/.bashrc" 2>/dev/null; then
+  printf '\n# Source ~/.bashrc.d/* if present\nif [ -d "$HOME/.bashrc.d" ]; then for f in "$HOME"/.bashrc.d/*; do [ -r "$f" ] && . "$f"; done; fi\n' >> "$HOME/.bashrc"
+fi
+mkdir -p "$HOME/.bashrc.d"
+
+cat > "$HOME/.bashrc.d/10-gcp-creds.sh" <<'EOF'
+# Recreate the credentials file from the secret (if missing), then export env vars
+export VERTEXAI_CREDENTIALS_PATH="${VERTEXAI_CREDENTIALS_PATH:-/workspaces/mp4prototype/mp4-search-prototype-fe11dd54b68d.json}"
+
+if [ -n "${GCP_SA_KEY_JSON:-}" ] && [ ! -s "$VERTEXAI_CREDENTIALS_PATH" ]; then
+  mkdir -p "$(dirname "$VERTEXAI_CREDENTIALS_PATH")"
+  printf '%s' "$GCP_SA_KEY_JSON" > "$VERTEXAI_CREDENTIALS_PATH"
+  chmod 600 "$VERTEXAI_CREDENTIALS_PATH"
+fi
+
+# Also let Google libs auto-detect
+export GOOGLE_APPLICATION_CREDENTIALS="$VERTEXAI_CREDENTIALS_PATH"
+EOF
