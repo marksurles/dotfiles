@@ -8,15 +8,19 @@ fi
 mkdir -p "$HOME/.bashrc.d"
 
 cat > "$HOME/.bashrc.d/10-gcp-creds.sh" <<'EOF'
-# Recreate the credentials file from the secret (if missing), then export env vars
-export VERTEXAI_CREDENTIALS_PATH="${VERTEXAI_CREDENTIALS_PATH:-/workspaces/mp4prototype/mp4-search-prototype-fe11dd54b68d.json}"
+# Recreate the credentials file from the Codespaces secret and set env vars
 
-if [ -n "${GCP_SA_KEY_JSON:-}" ] && [ ! -s "$VERTEXAI_CREDENTIALS_PATH" ]; then
+# Path where your app expects the JSON
+export VERTEXAI_CREDENTIALS_PATH="/workspaces/mp4prototype/mp4-search-prototype-fe11dd54b68d.json"
+
+# If the secret is present and the file is missing, recreate it
+if [ -n "${GCP_SA_KEY_JSON_B64:-}" ] && [ ! -s "$VERTEXAI_CREDENTIALS_PATH" ]; then
   mkdir -p "$(dirname "$VERTEXAI_CREDENTIALS_PATH")"
-  printf '%s' "$GCP_SA_KEY_JSON" > "$VERTEXAI_CREDENTIALS_PATH"
+  echo "$GCP_SA_KEY_JSON_B64" | base64 -d > "$VERTEXAI_CREDENTIALS_PATH"
   chmod 600 "$VERTEXAI_CREDENTIALS_PATH"
 fi
 
-# Also let Google libs auto-detect
+# Let Google libraries auto-detect it too
 export GOOGLE_APPLICATION_CREDENTIALS="$VERTEXAI_CREDENTIALS_PATH"
 EOF
+
