@@ -1,26 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure ~/.bashrc sources ~/.bashrc.d/*
-if ! grep -q 'bashrc.d' "$HOME/.bashrc" 2>/dev/null; then
-  printf '\n# Source ~/.bashrc.d/* if present\nif [ -d "$HOME/.bashrc.d" ]; then for f in "$HOME"/.bashrc.d/*; do [ -r "$f" ] && . "$f"; done; fi\n' >> "$HOME/.bashrc"
+# Resolve path to this repo (dotfiles)
+DOTFILES_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+
+# 1) Ensure ~/.bashrc will source ~/.bash_aliases and ~/.bashrc.d/*
+mkdir -p "$HOME"
+touch "$HOME/.bashrc"
+if ! grep -q 'bash_aliases' "$HOME/.bashrc"; then
+  printf '\n# Load per-user aliases if present\n[ -f "$HOME/.bash_aliases" ] && . "$HOME/.bash_aliases"\n' >> "$HOME/.bashrc"
+fi
+if ! grep -q 'bashrc.d' "$HOME/.bashrc"; then
+  printf '\n# Load all snippets in ~/.bashrc.d\nif [ -d "$HOME/.bashrc.d" ]; then for f in "$HOME"/.bashrc.d/*; do [ -r "$f" ] && . "$f"; done; fi\n' >> "$HOME/.bashrc"
 fi
 mkdir -p "$HOME/.bashrc.d"
 
-cat > "$HOME/.bashrc.d/10-gcp-creds.sh" <<'EOF'
-# Recreate the credentials file from the Codespaces secret and set env vars
+# 2) Symlink common dotfiles from this repo into $HOME (add more as needed)
+link() {
+  local src="$1" dst="$2"
+  [ -e "$src" ] || return 0
+  ln -sfn "$src" "$dst"
+  echo "linked: $dst -> $src"
+}
+link "$DOTFILES_DIR/.bash_aliases" "$HOME/.bash_aliases"
+link "$DOTFILES_DIR/.gitconfig"    "$HOME/.gitconfig"
+# link "$DOTFILES_DIR/.vimrc"      "$HOME/.vimrc"
 
-# Path where your app expects the JSON
+# 3) GCP creds: recreate file from Codespaces secret and export env vars
+cat > "$HOME/.bashrc.d/10-gcp-creds.sh" <<'EOF'
 export VERTEXAI_CREDENTIALS_PATH="/workspaces/mp4prototype/mp4-search-prototype-fe11dd54b68d.json"
 
-# If the secret is present and the file is missing, recreate it
 if [ -n "${GCP_SA_KEY_JSON_B64:-}" ] && [ ! -s "$VERTEXAI_CREDENTIALS_PATH" ]; then
   mkdir -p "$(dirname "$VERTEXAI_CREDENTIALS_PATH")"
   echo "$GCP_SA_KEY_JSON_B64" | base64 -d > "$VERTEXAI_CREDENTIALS_PATH"
   chmod 600 "$VERTEXAI_CREDENTIALS_PATH"
 fi
 
-# Let Google libraries auto-detect it too
 export GOOGLE_APPLICATION_CREDENTIALS="$VERTEXAI_CREDENTIALS_PATH"
 EOF
 
+echo "Dotfiles install complete."
