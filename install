@@ -1,41 +1,49 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Resolve path to this repo (dotfiles)
 DOTFILES_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
-# 1) Ensure ~/.bashrc will source ~/.bash_aliases and ~/.bashrc.d/*
-mkdir -p "$HOME"
+# Ensure ~/.bashrc exists
 touch "$HOME/.bashrc"
-if ! grep -q 'bash_aliases' "$HOME/.bashrc"; then
-  printf '\n# Load per-user aliases if present\n[ -f "$HOME/.bash_aliases" ] && . "$HOME/.bash_aliases"\n' >> "$HOME/.bashrc"
-fi
-if ! grep -q 'bashrc.d' "$HOME/.bashrc"; then
-  printf '\n# Load all snippets in ~/.bashrc.d\nif [ -d "$HOME/.bashrc.d" ]; then for f in "$HOME"/.bashrc.d/*; do [ -r "$f" ] && . "$f"; done; fi\n' >> "$HOME/.bashrc"
-fi
 mkdir -p "$HOME/.bashrc.d"
 
-# 2) Symlink common dotfiles from this repo into $HOME (add more as needed)
-link() {
-  local src="$1" dst="$2"
-  [ -e "$src" ] || return 0
-  ln -sfn "$src" "$dst"
-  echo "linked: $dst -> $src"
-}
-link "$DOTFILES_DIR/.bash_aliases" "$HOME/.bash_aliases"
-link "$DOTFILES_DIR/.gitconfig"    "$HOME/.gitconfig"
-# link "$DOTFILES_DIR/.vimrc"      "$HOME/.vimrc"
-
-# 3) GCP creds: recreate file from Codespaces secret and export env vars
-cat > "$HOME/.bashrc.d/10-gcp-creds.sh" <<'EOF'
-export VERTEXAI_CREDENTIALS_PATH="/workspaces/mp4prototype/mp4-search-prototype-fe11dd54b68d.json"
-
-if [ -n "${GCP_SA_KEY_JSON_B64:-}" ] && [ ! -s "$VERTEXAI_CREDENTIALS_PATH" ]; then
-  mkdir -p "$(dirname "$VERTEXAI_CREDENTIALS_PATH")"
-  echo "$GCP_SA_KEY_JSON_B64" | base64 -d > "$VERTEXAI_CREDENTIALS_PATH"
-  chmod 600 "$VERTEXAI_CREDENTIALS_PATH"
+# Make ~/.bashrc source aliases & snippets ONLY for interactive shells
+# (prevents breaking non-interactive shells that VS Code uses on startup)
+if ! grep -q 'BEGIN DOTFILES BLOCK' "$HOME/.bashrc"; then
+  cat >> "$HOME/.bashrc" <<'RC'
+# >>> BEGIN DOTFILES BLOCK >>>
+case $- in
+  *i*)
+    # Load per-user aliases if present
+    [ -f "$HOME/.bash_aliases" ] && . "$HOME/.bash_aliases"
+    # Load all snippets in ~/.bashrc.d
+    if [ -d "$HOME/.bashrc.d" ]; then
+      for f in "$HOME"/.bashrc.d/*; do [ -r "$f" ] && . "$f"; done
+    fi
+    ;;
+esac
+# <<< END DOTFILES BLOCK <<<
+RC
 fi
 
+# Symlink common dotfiles (rename in repo or adjust names as needed)
+ln -sfn "$DOTFILES_DIR/.bash_aliases" "$HOME/.bash_aliases" 2>/dev/null || true
+ln -sfn "$DOTFILES_DIR/.gitconfig"    "$HOME/.gitconfig"    2>/dev/null || true
+
+# Create the silent creds snippet (no output, no strict shell options)
+cat > "$HOME/.bashrc.d/10-gcp-creds.sh" <<'EOF'
+# Recreate credentials file from Codespaces secret if available, silently.
+# Never fail if the secret is missing—just skip.
+export VERTEXAI_CREDENTIALS_PATH="/workspaces/mp4prototype/mp4-search-prototype-fe11dd54b68d.json"
+if [ -n "${GCP_SA_KEY_JSON_B64:-}" ] && [ ! -s "$VERTEXAI_CREDENTIALS_PATH" ]; then
+  mkdir -p "$(dirname "$VERTEXAI_CREDENTIALS_PATH")" >/dev/null 2>&1
+  # Decode only if base64 is present; ignore errors
+  if command -v base64 >/dev/null 2>&1; then
+    echo "$GCP_SA_KEY_JSON_B64" | base64 -d > "$VERTEXAI_CREDENTIALS_PATH" 2>/dev/null || true
+    chmod 600 "$VERTEXAI_CREDENTIALS_PATH" 2>/dev/null || true
+  fi
+fi
+# Also expose for Google libs
 export GOOGLE_APPLICATION_CREDENTIALS="$VERTEXAI_CREDENTIALS_PATH"
 EOF
 
