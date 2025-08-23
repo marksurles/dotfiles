@@ -3,15 +3,22 @@ set -euo pipefail
 
 DOTFILES_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
-# --- common, silent creds setup (used by bash, zsh, login shells) ---
-SHELL_SNIPPET="$HOME/.shell_env/10-gcp-creds.sh"
+# ---- 0) Optional: link your dotfiles into $HOME ----
+ln -sfn "$DOTFILES_DIR/.gitconfig" "$HOME/.gitconfig" 2>/dev/null || true
+# If your aliases file is named .bash_aliases, keep the first line; if it's bash_aliases.txt, use the second and delete the first.
+ln -sfn "$DOTFILES_DIR/.bash_aliases"   "$HOME/.bash_aliases"   2>/dev/null || true
+ln -sfn "$DOTFILES_DIR/bash_aliases.txt" "$HOME/.bash_aliases"  2>/dev/null || true
+
+# ---- 1) Common, silent creds snippet (used by bash/zsh/login shells) ----
 mkdir -p "$HOME/.shell_env"
+SHELL_SNIPPET="$HOME/.shell_env/10-gcp-creds.sh"
 cat > "$SHELL_SNIPPET" <<'EOF'
-# Silent GCP creds setup
+# Silent VERTEX AI creds setup for Codespaces
 : "${VERTEXAI_CREDENTIALS_PATH:=/workspaces/mp4prototype/mp4-search-prototype-fe11dd54b68d.json}"
 export VERTEXAI_CREDENTIALS_PATH
 export GOOGLE_APPLICATION_CREDENTIALS="$VERTEXAI_CREDENTIALS_PATH"
 
+# If secret is present, write the JSON once
 if [ -n "${GCP_SA_KEY_JSON_B64:-}" ] && [ ! -s "$VERTEXAI_CREDENTIALS_PATH" ]; then
   mkdir -p "$(dirname "$VERTEXAI_CREDENTIALS_PATH")" >/dev/null 2>&1 || true
   if command -v base64 >/dev/null 2>&1; then
@@ -21,11 +28,11 @@ if [ -n "${GCP_SA_KEY_JSON_B64:-}" ] && [ ! -s "$VERTEXAI_CREDENTIALS_PATH" ]; t
 fi
 EOF
 
-# Ensure startup files source the snippet for interactive shells only
+# ---- 2) Ensure startup files source the snippet (interactive shells only) ----
 ensure_source() {
-  local file="$1" guard="# DOTFILES_SHELL_ENV"
-  touch "$file"
-  grep -q "$guard" "$file" || cat >> "$file" <<EOF
+  local f="$1" ; local guard="# DOTFILES_SHELL_ENV"
+  touch "$f"
+  grep -q "$guard" "$f" || cat >> "$f" <<EOF
 $guard
 case \$- in *i*) [ -r "$SHELL_SNIPPET" ] && . "$SHELL_SNIPPET";; esac
 EOF
@@ -33,9 +40,5 @@ EOF
 ensure_source "$HOME/.bashrc"
 ensure_source "$HOME/.zshrc"
 ensure_source "$HOME/.profile"
-
-# Optional: link your aliases/configs (rename or adjust as needed)
-ln -sfn "$DOTFILES_DIR/.bash_aliases" "$HOME/.bash_aliases" 2>/dev/null || true
-ln -sfn "$DOTFILES_DIR/.gitconfig"    "$HOME/.gitconfig"    2>/dev/null || true
 
 echo "Dotfiles install complete."
