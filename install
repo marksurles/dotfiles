@@ -1,12 +1,9 @@
-# 1) Install a universal startup snippet
+# 1) Ensure the snippet exists
 mkdir -p "$HOME/.shell_env"
 cat > "$HOME/.shell_env/10-gcp-creds.sh" <<'EOF'
-# Universal VERTEX AI creds setup (silent)
 : "${VERTEXAI_CREDENTIALS_PATH:=/workspaces/mp4prototype/mp4-search-prototype-fe11dd54b68d.json}"
 export VERTEXAI_CREDENTIALS_PATH
 export GOOGLE_APPLICATION_CREDENTIALS="$VERTEXAI_CREDENTIALS_PATH"
-
-# Write the JSON once if the secret is present
 if [ -n "${GCP_SA_KEY_JSON_B64:-}" ] && [ ! -s "$VERTEXAI_CREDENTIALS_PATH" ]; then
   mkdir -p "$(dirname "$VERTEXAI_CREDENTIALS_PATH")" >/dev/null 2>&1 || true
   command -v base64 >/dev/null 2>&1 && echo "$GCP_SA_KEY_JSON_B64" | base64 -d > "$VERTEXAI_CREDENTIALS_PATH" 2>/dev/null || true
@@ -14,15 +11,16 @@ if [ -n "${GCP_SA_KEY_JSON_B64:-}" ] && [ ! -s "$VERTEXAI_CREDENTIALS_PATH" ]; t
 fi
 EOF
 
-# 2) Ensure ALL common startup files source it (bash & zsh, login & non-login)
-for f in "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.profile" "$HOME/.zshrc"; do
-  touch "$f"
-  grep -q 'DOTFILES_SHELL_ENV' "$f" || printf '%s\n' '# DOTFILES_SHELL_ENV' '[ -r "$HOME/.shell_env/10-gcp-creds.sh" ] && . "$HOME/.shell_env/10-gcp-creds.sh"' >> "$f"
+# 2) Make EVERY startup file source it (no interactive guard)
+for f in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.profile"; do
+  [ -f "$f" ] || touch "$f"
+  grep -q 'SOURCE_SHELL_ENV_10_GCP_CREDS' "$f" 2>/dev/null || \
+    printf '%s\n' '# SOURCE_SHELL_ENV_10_GCP_CREDS' \
+                  '[ -r "$HOME/.shell_env/10-gcp-creds.sh" ] && . "$HOME/.shell_env/10-gcp-creds.sh"' >> "$f"
 done
 
 # 3) Reload current shell and verify
 . "$HOME/.shell_env/10-gcp-creds.sh"
-echo "Secret size: $(echo -n "${GCP_SA_KEY_JSON_B64:-}" | wc -c) bytes"
-echo "VERTEXAI_CREDENTIALS_PATH -> [$VERTEXAI_CREDENTIALS_PATH]"
+echo "Secret bytes: $(echo -n "${GCP_SA_KEY_JSON_B64:-}" | wc -c)"
+echo "VERTEXAI_CREDENTIALS_PATH => [$VERTEXAI_CREDENTIALS_PATH]"
 ls -l "$VERTEXAI_CREDENTIALS_PATH" || echo "creds file not present yet"
-[ -s "$VERTEXAI_CREDENTIALS_PATH" ] && head -n 2 "$VERTEXAI_CREDENTIALS_PATH" || true
