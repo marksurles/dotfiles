@@ -1,26 +1,20 @@
-# 1) Ensure the snippet exists
-mkdir -p "$HOME/.shell_env"
-cat > "$HOME/.shell_env/10-gcp-creds.sh" <<'EOF'
-: "${VERTEXAI_CREDENTIALS_PATH:=/workspaces/mp4prototype/mp4-search-prototype-fe11dd54b68d.json}"
-export VERTEXAI_CREDENTIALS_PATH
-export GOOGLE_APPLICATION_CREDENTIALS="$VERTEXAI_CREDENTIALS_PATH"
-if [ -n "${GCP_SA_KEY_JSON_B64:-}" ] && [ ! -s "$VERTEXAI_CREDENTIALS_PATH" ]; then
-  mkdir -p "$(dirname "$VERTEXAI_CREDENTIALS_PATH")" >/dev/null 2>&1 || true
-  command -v base64 >/dev/null 2>&1 && echo "$GCP_SA_KEY_JSON_B64" | base64 -d > "$VERTEXAI_CREDENTIALS_PATH" 2>/dev/null || true
-  chmod 600 "$VERTEXAI_CREDENTIALS_PATH" 2>/dev/null || true
+#!/usr/bin/env bash
+set -euo pipefail
+
+DOTFILES_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+
+# --- Link common dotfiles into $HOME ---
+ln -sfn "$DOTFILES_DIR/.bash_aliases"   "$HOME/.bash_aliases"   2>/dev/null || true
+ln -sfn "$DOTFILES_DIR/.gitconfig"      "$HOME/.gitconfig"      2>/dev/null || true
+# add more dotfiles as needed
+
+# --- Ensure ~/.bashrc loads aliases ---
+touch "$HOME/.bashrc"
+if ! grep -q 'DOTFILES_ALIASES' "$HOME/.bashrc"; then
+  cat >> "$HOME/.bashrc" <<'RC'
+# DOTFILES_ALIASES
+[ -f "$HOME/.bash_aliases" ] && . "$HOME/.bash_aliases"
+RC
 fi
-EOF
 
-# 2) Make EVERY startup file source it (no interactive guard)
-for f in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.profile"; do
-  [ -f "$f" ] || touch "$f"
-  grep -q 'SOURCE_SHELL_ENV_10_GCP_CREDS' "$f" 2>/dev/null || \
-    printf '%s\n' '# SOURCE_SHELL_ENV_10_GCP_CREDS' \
-                  '[ -r "$HOME/.shell_env/10-gcp-creds.sh" ] && . "$HOME/.shell_env/10-gcp-creds.sh"' >> "$f"
-done
-
-# 3) Reload current shell and verify
-. "$HOME/.shell_env/10-gcp-creds.sh"
-echo "Secret bytes: $(echo -n "${GCP_SA_KEY_JSON_B64:-}" | wc -c)"
-echo "VERTEXAI_CREDENTIALS_PATH => [$VERTEXAI_CREDENTIALS_PATH]"
-ls -l "$VERTEXAI_CREDENTIALS_PATH" || echo "creds file not present yet"
+echo "Dotfiles install complete."
