@@ -1,20 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
 DOTFILES_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
-# --- Link common dotfiles into $HOME ---
-ln -sfn "$DOTFILES_DIR/.bash_aliases"   "$HOME/.bash_aliases"   2>/dev/null || true
-ln -sfn "$DOTFILES_DIR/.gitconfig"      "$HOME/.gitconfig"      2>/dev/null || true
-# add more dotfiles as needed
+# Link common dotfiles
+ln -sfn "$DOTFILES_DIR/.bash_aliases" "$HOME/.bash_aliases" 2>/dev/null || true
+ln -sfn "$DOTFILES_DIR/.gitconfig"    "$HOME/.gitconfig"    2>/dev/null || true
 
-# --- Ensure ~/.bashrc loads aliases ---
+# Ensure ~/.bashrc sources aliases (bash only; do NOT touch .profile/.bash_profile/.zshrc)
 touch "$HOME/.bashrc"
-if ! grep -q 'DOTFILES_ALIASES' "$HOME/.bashrc"; then
-  cat >> "$HOME/.bashrc" <<'RC'
+grep -q 'DOTFILES_ALIASES' "$HOME/.bashrc" 2>/dev/null || cat >> "$HOME/.bashrc" <<'RC'
 # DOTFILES_ALIASES
 [ -f "$HOME/.bash_aliases" ] && . "$HOME/.bash_aliases"
 RC
-fi
 
-echo "Dotfiles install complete."
+echo "Dotfiles install complete." >> "$HOME/.dotfiles_install.log"
