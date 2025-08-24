@@ -1,3 +1,6 @@
+# Only load aliases in interactive shells
+[[ $- != *i* ]] && return
+
 alias m='more'
 alias ls='ls -FC'
 alias h='history'
