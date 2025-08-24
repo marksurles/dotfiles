@@ -1,16 +1,27 @@
-#!/usr/bin/env bash
-set -euo pipefail
-DOTFILES_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+#!/usr/bin/env sh
+# POSIX-safe dotfiles installer (aliases only)
 
-# Link common dotfiles
-ln -sfn "$DOTFILES_DIR/.bash_aliases" "$HOME/.bash_aliases" 2>/dev/null || true
-ln -sfn "$DOTFILES_DIR/.gitconfig"    "$HOME/.gitconfig"    2>/dev/null || true
+# Use current directory as the dotfiles repo root (GitHub runs this from repo root)
+DOTFILES_DIR="${DOTFILES_DIR:-$PWD}"
+LOG="$HOME/.dotfiles_install.log"
 
-# Ensure ~/.bashrc sources aliases (bash only; do NOT touch .profile/.bash_profile/.zshrc)
-touch "$HOME/.bashrc"
-grep -q 'DOTFILES_ALIASES' "$HOME/.bashrc" 2>/dev/null || cat >> "$HOME/.bashrc" <<'RC'
-# DOTFILES_ALIASES
-[ -f "$HOME/.bash_aliases" ] && . "$HOME/.bash_aliases"
-RC
+# Make sure ~/.bashrc exists and sources ~/.bash_aliases
+[ -f "$HOME/.bashrc" ] || : > "$HOME/.bashrc"
+# Append once, idempotent guard
+grep -q 'DOTFILES_ALIASES' "$HOME/.bashrc" 2>/dev/null || {
+  {
+    echo '# DOTFILES_ALIASES'
+    echo '[ -f "$HOME/.bash_aliases" ] && . "$HOME/.bash_aliases"'
+  } >> "$HOME/.bashrc"
+}
 
-echo "Dotfiles install complete." >> "$HOME/.dotfiles_install.log"
+# Link aliases (only if it exists in the repo)
+if [ -f "$DOTFILES_DIR/.bash_aliases" ]; then
+  ln -sfn "$DOTFILES_DIR/.bash_aliases" "$HOME/.bash_aliases" 2>/dev/null || true
+  echo "linked: $HOME/.bash_aliases -> $DOTFILES_DIR/.bash_aliases" >> "$LOG"
+else
+  echo "warning: $DOTFILES_DIR/.bash_aliases not found" >> "$LOG"
+fi
+
+# Quiet success marker
+echo "install done: $(date)" >> "$LOG"
